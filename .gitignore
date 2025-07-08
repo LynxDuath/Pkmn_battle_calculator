@@ -1,2 +1,5 @@
 # The compiled binary
 *.bin
+
+# Archive file for unused code snippets that might come in handy in the future
+*.arc
