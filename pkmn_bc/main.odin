@@ -87,6 +87,7 @@ Move :: struct {
 	// AP
 }
 MovePool :: [4]MoveName
+Status1 :: enum u8 {none, fainted, burned, frozen, paralyzed, poisoned, toxiced} // Working on one after the other, currently fainted
 Mon :: struct {
 	species: string,
 	// name: string,
@@ -99,7 +100,7 @@ Mon :: struct {
 	evs: Stats6,
 	actual_stats: Stats6,
 	current_hp: int,
-	status1: string,
+	status1: Status1,
 	moves: MovePool,
 }
 BattleMon :: struct {
@@ -110,7 +111,7 @@ BattleMon :: struct {
 		status2: string,
 	}
 }
-AttackResult :: enum u8 {none, miss, supeff, noteff, crit, critsupeff, critnoteff}
+AttackResult :: enum u8 {hit, miss, supeff, noteff, crit, critsupeff, critnoteff}
 PrioEntry :: struct{
 	prio: i8,
 	spe: ^int,
@@ -121,7 +122,7 @@ PrioEntry :: struct{
 PrioList :: [dynamic]PrioEntry
 
 // procs
-attack :: proc(mon_1, mon_2: ^BattleMon, move: ^MoveName) -> (damage: int, result := AttackResult.none) {
+attack :: proc(mon_1, mon_2: ^BattleMon, move: ^MoveName) -> (damage: int, result := AttackResult.hit) {
 	move_data := move_chart[move^]
 
 	// damage = floor(((level*2+10)*bdmg*atk/250/def*F1+2)*crit*F2*Z/100*stab*type1*type2*F3)
@@ -133,6 +134,13 @@ attack :: proc(mon_1, mon_2: ^BattleMon, move: ^MoveName) -> (damage: int, resul
 	// F3 = solid rock/filter * expert belt * tinted lens * berry
 	// Omission for now: abilities, items, funky moves, status, weather
 	// => F1, F2, F3, atk, def = stat * mod, bdmg = bpwr
+
+	// Hitting (not, due to missing target)
+	if mon_2.stat_mon.status1 == .fainted {
+		damage = 0
+		result = .miss
+		return damage, result
+	}
 
 	// Hitting (accuracy and evasion)
 	// Acc_mod = acc_move * acc_eva_mod * stuff
@@ -150,7 +158,7 @@ attack :: proc(mon_1, mon_2: ^BattleMon, move: ^MoveName) -> (damage: int, resul
 	acc_eva_rand := rand.int_max(101)
 	if acc_eva_rand > acc_move {
 		damage = 0
-		result = AttackResult.miss
+		result = .miss
 		return damage, result
 	}
 
@@ -180,9 +188,9 @@ attack :: proc(mon_1, mon_2: ^BattleMon, move: ^MoveName) -> (damage: int, resul
 	type1: f32 = type_chart_raw[TypeMapIndex[move_data.types.t1]*nr_types+TypeMapIndex[mon_2.dyn_mon.type_changes.t1]]
 	type2: f32 = type_chart_raw[TypeMapIndex[move_data.types.t1]*nr_types+TypeMapIndex[mon_2.dyn_mon.type_changes.t2]]
 	if type1 * type2 > 1 {
-		result = AttackResult.supeff
+		result = .supeff
 	} else if type1 * type2 < 1 {
-		result = AttackResult.noteff
+		result = .noteff
 	}
 
 	// check for crit
@@ -195,12 +203,12 @@ attack :: proc(mon_1, mon_2: ^BattleMon, move: ^MoveName) -> (damage: int, resul
 		atk_mod = min(atk_mod, 1.0)
 		def_mod = max(def_mod, 1.0)
 		#partial switch result {
-		case .none:
-			result = AttackResult.crit
+		case .hit:
+			result = .crit
 		case .supeff:
-			result = AttackResult.critsupeff
+			result = .critsupeff
 		case .noteff:
-			result = AttackResult.critnoteff
+			result = .critnoteff
 		}
 	}
 
@@ -223,7 +231,6 @@ attack :: proc(mon_1, mon_2: ^BattleMon, move: ^MoveName) -> (damage: int, resul
 }
 
 half_round :: proc(mon_1, mon_2: ^BattleMon, move: ^MoveName) {
-	fmt.println()
 	damage, result := attack(mon_1, mon_2, move)
 	#partial switch result {
 	case .miss:
@@ -242,10 +249,11 @@ half_round :: proc(mon_1, mon_2: ^BattleMon, move: ^MoveName) {
 		mon_2.stat_mon.current_hp -= damage
 		fmt.printfln("%s's current HP: %d", mon_2.stat_mon.species, mon_2.stat_mon.current_hp)
 	} else {
-		fmt.printfln("%s fainted!", mon_2.stat_mon.species)
+		fmt.printfln("%s (%s) against %s: %d", move^, mon_1.stat_mon.species, mon_2.stat_mon.species, mon_2.stat_mon.current_hp)
 		mon_2.stat_mon.current_hp = 0
+		mon_2.stat_mon.status1 = .fainted
+		fmt.printfln("%s fainted!", mon_2.stat_mon.species)
 	}
-	fmt.println()
 }
 
 prio_sort :: proc(lhs, rhs: PrioEntry) -> bool {
@@ -267,14 +275,20 @@ full_round :: proc(mon_1, mon_2: ^BattleMon, move1, move2: ^MoveName) {
 
 	// calling half_round() in order
 	for entry in prio_list {
-		half_round(entry.atk_mon, entry.def_mon, entry.move)
+		fmt.println()
+		if entry.atk_mon.stat_mon.status1 != .fainted {
+			half_round(entry.atk_mon, entry.def_mon, entry.move)
+		} else {
+			fmt.printfln("%s is fainted, it can't fight!", entry.atk_mon.stat_mon.species)
+		}
+		fmt.println()
 	}
 }
 
 // main
 main :: proc() {
-	my_mon := Mon{"Pikachu", 50, {"Electric", "None"}, {35, 55, 40, 50, 50, 90}, {31, 31, 31, 31, 31, 31}, {4, 252, 0, 0, 0, 252}, {111, 107, 60, 70, 70, 142}, 111, "None", {"Volt Tackle", "Iron Tail", "Quick Attack", "Thunderbolt"}}
-	enemy_mon := Mon{"Charizard", 50, {"Fire", "Flying"}, {78, 84, 78, 109, 85, 100}, {31, 31, 31, 31, 31, 31}, {4, 0, 0, 252, 0, 252}, {154, 104, 98, 161, 105, 152}, 154, "None", {"Flare Blitz", "Air Slash", "Blast Burn", "Dragon Pulse"}}
+	my_mon := Mon{"Pikachu", 50, {"Electric", "None"}, {35, 55, 40, 50, 50, 90}, {31, 31, 31, 31, 31, 31}, {4, 252, 0, 0, 0, 252}, {111, 107, 60, 70, 70, 142}, 111, .none, {"Volt Tackle", "Iron Tail", "Quick Attack", "Thunderbolt"}}
+	enemy_mon := Mon{"Charizard", 50, {"Fire", "Flying"}, {78, 84, 78, 109, 85, 100}, {31, 31, 31, 31, 31, 31}, {4, 0, 0, 252, 0, 252}, {154, 104, 98, 161, 105, 152}, 154, .none, {"Flare Blitz", "Air Slash", "Blast Burn", "Dragon Pulse"}}
 	my_battle_mon := BattleMon{&my_mon, {my_mon.types, {1, 1, 1, 1, 1, 1, 1, 1}, "None"}}
 	enemy_battle_mon := BattleMon{&enemy_mon, {enemy_mon.types, {1, 1, 1, 1, 1, 1, 1, 1}, "None"}}
 	my_move := rand.choice(my_mon.moves[:])
