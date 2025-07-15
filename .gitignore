@@ -1,5 +1,12 @@
 # The compiled binary
 *.bin
 
+# The swap file
+*.swp
+*.swo
+
 # Archive file for unused code snippets that might come in handy in the future
 *.arc
+
+# Test directory
+tests/

@@ -5,6 +5,7 @@ package main
 import "core:fmt"
 import "core:math"
 import "core:math/rand"
+import "core:os"
 import "core:slice"
 
 // type chart
@@ -55,14 +56,14 @@ type_chart_raw := [?]f32 { // rows: type of move, columns: type of defending Pok
 
 // moves
 move_chart := map[MoveName]Move { //PLEASE NEVER CHANGE
-	"Volt Tackle" = {{"Electric", "None"}, .physical, 60, 100, 0}, // power halved for slower battles
-	"Iron Tail" = {{"Steel", "None"}, .physical, 50, 75, 0}, // power halved for slower battles
-	"Quick Attack" = {{"Normal", "None"}, .physical, 20, 100, 1}, // power halved for slower battles
-	"Thunderbolt" = {{"Electric", "None"}, .special, 45, 100, 0}, // power halved for slower battles
-	"Flare Blitz" = {{"Fire", "None"}, .physical, 60, 100, 0}, // power halved for slower battles
-	"Air Slash" = {{"Flying", "None"}, .special, 38, 95, 0}, // power halved for slower battles
-	"Blast Burn" = {{"Fire", "None"}, .special, 75, 90, 0}, // power halved for slower battles
-	"Dragon Pulse" = {{"Dragon", "None"}, .special, 43, 100, 0}, // power halved for slower battles
+	"Volt Tackle" = {{"Electric", "None"}, .physical, 24, 100, 0}, // power/5 for slower battles
+	"Iron Tail" = {{"Steel", "None"}, .physical, 20, 75, 0}, // power/5 for slower battles
+	"Quick Attack" = {{"Normal", "None"}, .physical, 8, 100, 1}, // power/5 for slower battles
+	"Thunderbolt" = {{"Electric", "None"}, .special, 18, 100, 0}, // power halved for slower battles
+	"Flare Blitz" = {{"Fire", "None"}, .physical, 24, 100, 0}, // power halved for slower battles
+	"Air Slash" = {{"Flying", "None"}, .special, 15, 95, 0}, // power halved for slower battles
+	"Blast Burn" = {{"Fire", "None"}, .special, 30, 90, 0}, // power halved for slower battles
+	"Dragon Pulse" = {{"Dragon", "None"}, .special, 17, 100, 0}, // power halved for slower battles
 }
 
 // structs and others
@@ -70,7 +71,7 @@ Stats6 :: struct {
 	hp, atk, def, spa, spd, spe: int,
 }
 Stats8 :: struct {
-	hp, atk, def, spa, spd, spe, acc, eva: int,
+	hp, atk, def, spa, spd, spe, acc, eva: i8,
 }
 Types :: struct {
 		t1, t2: string,
@@ -87,7 +88,8 @@ Move :: struct {
 	// AP
 }
 MovePool :: [4]MoveName
-Status1 :: enum u8 {none, fainted, burned, frozen, paralyzed, poisoned, toxiced} // Working on one after the other, currently fainted
+Status1 :: enum u8 {none, fainted, burned, frozen, paralyzed, poisoned, badlypoisoned, sleep} // Working on one after the other, worling on sleep //in theory all are done, testing now
+BadpoisonCounter :: map[string]u8
 Mon :: struct {
 	species: string,
 	// name: string,
@@ -109,12 +111,17 @@ BattleMon :: struct {
 		type_changes: Types,
 		stat_changes: Stats8,
 		status2: string,
+		status_counters: struct {
+			badpoison: u8,
+			sleep: u8,
+			//confusion: u8,
+		}
 	}
 }
 AttackResult :: enum u8 {hit, miss, supeff, noteff, crit, critsupeff, critnoteff}
 PrioEntry :: struct{
 	prio: i8,
-	spe: ^int,
+	spe: int,
 	atk_mon: ^BattleMon,
 	def_mon: ^BattleMon,
 	move: ^MoveName,
@@ -122,6 +129,24 @@ PrioEntry :: struct{
 PrioList :: [dynamic]PrioEntry
 
 // procs
+stat_fac_from_mod :: proc(mod: i8) -> (factor: f32 = 1.0) {
+	if mod > 0 {
+		factor = f32(2 + mod) / 2.0
+	} else if mod < 0 {
+		factor = 2.0 / f32(2 - mod)
+	}
+	return factor
+}
+
+acev_fac_from_mod :: proc(mod: i8) -> (factor: f32 = 1.0) {
+	if mod > 0 {
+		factor = f32(3 + mod) / 3.0
+	} else if mod < 0 {
+		factor = 3.0 / f32(3 - mod)
+	}
+	return factor
+}
+
 attack :: proc(mon_1, mon_2: ^BattleMon, move: ^MoveName) -> (damage: int, result := AttackResult.hit) {
 	move_data := move_chart[move^]
 
@@ -145,18 +170,13 @@ attack :: proc(mon_1, mon_2: ^BattleMon, move: ^MoveName) -> (damage: int, resul
 	// Hitting (accuracy and evasion)
 	// Acc_mod = acc_move * acc_eva_mod * stuff
 	bacc := f32(move_data.base_accuracy)
-	acc_stat := f32(mon_1.dyn_mon.stat_changes.acc)
-	eva_stat := f32(mon_2.dyn_mon.stat_changes.eva)
-	acc_eva_diff := max(min(acc_stat - eva_stat, 6), -6)
-	acc_eva_mod: f32 = 1.0
-	if acc_eva_diff > 0 {
-		acc_eva_mod = (3 + acc_eva_diff) / 3
-	} else if acc_eva_diff < 0 {
-		acc_eva_mod = 3 / (3 - acc_eva_diff)
-	}
-	acc_move := min(int(bacc * acc_eva_mod), 100)
-	acc_eva_rand := rand.int_max(101)
-	if acc_eva_rand > acc_move {
+	acc_stat := mon_1.dyn_mon.stat_changes.acc
+	eva_stat := mon_2.dyn_mon.stat_changes.eva
+	acev_diff := max(min(acc_stat - eva_stat, 6), -6)
+	acev_mod := acev_fac_from_mod(acev_diff)
+	acc_move := min(int(bacc * acev_mod), 100)
+	acev_rand := rand.int_max(101)
+	if acev_rand > acc_move {
 		damage = 0
 		result = .miss
 		return damage, result
@@ -168,17 +188,21 @@ attack :: proc(mon_1, mon_2: ^BattleMon, move: ^MoveName) -> (damage: int, resul
 	atk_mod: f32
 	def_stat: f32
 	def_mod: f32
+	burn: f32 = 1.0
 	#partial switch move_data.category {
 	case .physical:
-		atk_stat = f32(mon_1.stat_mon.actual_stats.atk) // spa
-		atk_mod = f32(mon_1.dyn_mon.stat_changes.atk) // spa
-		def_stat = f32(mon_2.stat_mon.actual_stats.def) // spd
-		def_mod = f32(mon_2.dyn_mon.stat_changes.def) // spd
+		atk_stat = f32(mon_1.stat_mon.actual_stats.atk)
+		atk_mod = stat_fac_from_mod(mon_1.dyn_mon.stat_changes.atk)
+		def_stat = f32(mon_2.stat_mon.actual_stats.def)
+		def_mod = stat_fac_from_mod(mon_2.dyn_mon.stat_changes.def)
+		if mon_1.stat_mon.status1 == .burned {
+			burn = 0.5
+		}
 	case .special:
-		atk_stat = f32(mon_1.stat_mon.actual_stats.spa) // spa
-		atk_mod = f32(mon_1.dyn_mon.stat_changes.spa) // spa
-		def_stat = f32(mon_2.stat_mon.actual_stats.spd) // spd
-		def_mod = f32(mon_2.dyn_mon.stat_changes.spd) // spd
+		atk_stat = f32(mon_1.stat_mon.actual_stats.spa)
+		atk_mod = stat_fac_from_mod(mon_1.dyn_mon.stat_changes.spa)
+		def_stat = f32(mon_2.stat_mon.actual_stats.spd)
+		def_mod = stat_fac_from_mod(mon_2.dyn_mon.stat_changes.spd)
 	}
 	random_factor := (f32(85 + rand.int_max(16)) / 100.0)
 	stab: f32 = 1.0
@@ -216,15 +240,8 @@ attack :: proc(mon_1, mon_2: ^BattleMon, move: ^MoveName) -> (damage: int, resul
 	atk := atk_stat * atk_mod
 	def := def_stat * def_mod
 
-	/*
-	fmt.println(level)
-	fmt.println(bdmg)
-	fmt.println(atk)
-	fmt.println(def)
-	fmt.println(random_factor)
-	*/
-
-	damage_raw := ((level + 5) * bdmg * atk / def / 125 + 2) * crit * random_factor * stab * type1 * type2
+	f1: f32 = burn
+	damage_raw := ((level + 5) * bdmg * atk / def / 125 * f1 + 2) * crit * random_factor * stab * type1 * type2
 	damage = int(damage_raw)
 
 	return damage, result
@@ -236,7 +253,13 @@ half_round :: proc(mon_1, mon_2: ^BattleMon, move: ^MoveName) {
 	case .miss:
 		fmt.println(mon_1.stat_mon.species, "missed.")
 	case .crit, .critsupeff, .critnoteff:
-		fmt.println("It\'s a critical hit!")
+		fmt.println("It's a critical hit!")
+		fallthrough
+	case:
+		if move_chart[move^].types.t1 == "Fire" && mon_2.stat_mon.status1 == .frozen {
+			mon_2.stat_mon.status1 = .none
+			fmt.printfln("%s thawed out!", mon_2.stat_mon.species)
+		}
 	}
 	#partial switch result {
 	case .supeff, .critsupeff:
@@ -253,6 +276,9 @@ half_round :: proc(mon_1, mon_2: ^BattleMon, move: ^MoveName) {
 		mon_2.stat_mon.current_hp = 0
 		mon_2.stat_mon.status1 = .fainted
 		fmt.printfln("%s fainted!", mon_2.stat_mon.species)
+		// win condition
+		fmt.printfln("%s wins the match!", mon_1.stat_mon.species)
+		os.exit(0)
 	}
 }
 
@@ -260,40 +286,134 @@ prio_sort :: proc(lhs, rhs: PrioEntry) -> bool {
 	return lhs.prio > rhs.prio
 }
 
+para_spe :: proc(spe: int, status1: Status1) -> int {
+		if status1 == .paralyzed {
+			return spe / 2
+		} else {
+			return spe
+		}
+}
+
+prio_speed_sort :: proc(lhs, rhs: PrioEntry) -> bool {
+	return lhs.prio == rhs.prio && lhs.spe > rhs.spe
+}
+
 speed_sort :: proc(lhs, rhs: PrioEntry) -> bool {
-	return lhs.prio == rhs.prio && lhs.spe^ > rhs.spe^
+	return lhs.spe > rhs.spe
 }
 
 full_round :: proc(mon_1, mon_2: ^BattleMon, move1, move2: ^MoveName) {
-	// determining order // no speed modifyer
 	prio_list := PrioList{
-		{move_chart[move1^].prio, &mon_1.stat_mon.actual_stats.spe, mon_1, mon_2, move1},
-		{move_chart[move2^].prio, &mon_2.stat_mon.actual_stats.spe, mon_2, mon_1, move2},
+		{move_chart[move1^].prio, para_spe(mon_1.stat_mon.actual_stats.spe, mon_1.stat_mon.status1), mon_1, mon_2, move1},
+		{move_chart[move2^].prio, para_spe(mon_2.stat_mon.actual_stats.spe, mon_2.stat_mon.status1), mon_2, mon_1, move2},
 	}
 	slice.sort_by(prio_list[:], prio_sort)
-	slice.sort_by(prio_list[:], speed_sort)
+	slice.sort_by(prio_list[:], prio_speed_sort)
 
 	// calling half_round() in order
 	for entry in prio_list {
 		fmt.println()
-		if entry.atk_mon.stat_mon.status1 != .fainted {
-			half_round(entry.atk_mon, entry.def_mon, entry.move)
-		} else {
+		#partial switch entry.atk_mon.stat_mon.status1 {
+		case .frozen:
+			// thaw out chance
+			thaw_rand := rand.float32()
+			if thaw_rand <= 0.2 {
+				entry.atk_mon.stat_mon.status1 = .none
+				fmt.printfln("%s thawed out!", entry.atk_mon.stat_mon.species)
+			}
+			// thaw out with attack
+			// missing
+		case .sleep:
+			// wake up pseudochance
+			if entry.atk_mon.dyn_mon.status_counters.sleep == 0 {
+				entry.atk_mon.stat_mon.status1 = .none
+				fmt.printfln("%s woke up!", entry.atk_mon.stat_mon.species)
+			} else {
+				entry.atk_mon.dyn_mon.status_counters.sleep -= 1
+			}
+		}
+		#partial switch entry.atk_mon.stat_mon.status1 {
+		case .fainted:
 			fmt.printfln("%s is fainted, it can't fight!", entry.atk_mon.stat_mon.species)
+		case .frozen:
+			fmt.printfln("%s is frozen solid!", entry.atk_mon.stat_mon.species)
+		case .sleep:
+			fmt.printfln("%s is fast asleep!", entry.atk_mon.stat_mon.species)
+		case .paralyzed:
+			para_rand := rand.float32()
+			if para_rand <= 0.25 {
+				fmt.printfln("%s is paralyzed! It can't move!", entry.atk_mon.stat_mon.species)
+				break
+			}
+			fallthrough
+		case:
+			half_round(entry.atk_mon, entry.def_mon, entry.move)
 		}
 		fmt.println()
 	}
+
+	// burn, poison, sandstorm, hail
+	slice.sort_by(prio_list[:], speed_sort)
+	for entry in prio_list {
+		#partial switch entry.atk_mon.stat_mon.status1 {
+		case .burned:
+			damage := max(entry.atk_mon.stat_mon.actual_stats.hp / 16, 1)
+			#assert(type_of(damage) == int)
+			if damage < entry.atk_mon.stat_mon.current_hp {
+				fmt.printfln("%s was hurt by its burn!", entry.atk_mon.stat_mon.species)
+				entry.atk_mon.stat_mon.current_hp -= damage
+				fmt.printfln("%s's current HP: %d", entry.atk_mon.stat_mon.species, entry.atk_mon.stat_mon.current_hp)
+			} else {
+				fmt.printfln("%s was hurt by its burn!", entry.atk_mon.stat_mon.species)
+				entry.atk_mon.stat_mon.current_hp = 0
+				entry.atk_mon.stat_mon.status1 = .fainted
+				fmt.printfln("%s fainted!", entry.atk_mon.stat_mon.species)
+			}
+		case .poisoned:
+			damage := max(entry.atk_mon.stat_mon.actual_stats.hp / 8, 1)
+			#assert(type_of(damage) == int)
+			if damage < entry.atk_mon.stat_mon.current_hp {
+				fmt.printfln("%s was hurt by poison!", entry.atk_mon.stat_mon.species)
+				entry.atk_mon.stat_mon.current_hp -= damage
+				fmt.printfln("%s's current HP: %d", entry.atk_mon.stat_mon.species, entry.atk_mon.stat_mon.current_hp)
+			} else {
+				fmt.printfln("%s was hurt by poison!", entry.atk_mon.stat_mon.species)
+				entry.atk_mon.stat_mon.current_hp = 0
+				entry.atk_mon.stat_mon.status1 = .fainted
+				fmt.printfln("%s fainted!", entry.atk_mon.stat_mon.species)
+			}
+		case .badlypoisoned:
+			entry.atk_mon.dyn_mon.status_counters.badpoison = min(entry.atk_mon.dyn_mon.status_counters.badpoison + 1, 15)
+			damage := max(entry.atk_mon.stat_mon.actual_stats.hp * int(entry.atk_mon.dyn_mon.status_counters.badpoison) / 16, 1)
+			#assert(type_of(damage) == int)
+			if damage < entry.atk_mon.stat_mon.current_hp {
+				fmt.printfln("%s was hurt by poison!", entry.atk_mon.stat_mon.species)
+				entry.atk_mon.stat_mon.current_hp -= damage
+				fmt.printfln("%s's current HP: %d", entry.atk_mon.stat_mon.species, entry.atk_mon.stat_mon.current_hp)
+			} else {
+				fmt.printfln("%s was hurt by poison!", entry.atk_mon.stat_mon.species)
+				entry.atk_mon.stat_mon.current_hp = 0
+				entry.atk_mon.stat_mon.status1 = .fainted
+				fmt.printfln("%s fainted!", entry.atk_mon.stat_mon.species)
+			}
+		}
+	}
+	fmt.println()
 }
 
 // main
 main :: proc() {
 	my_mon := Mon{"Pikachu", 50, {"Electric", "None"}, {35, 55, 40, 50, 50, 90}, {31, 31, 31, 31, 31, 31}, {4, 252, 0, 0, 0, 252}, {111, 107, 60, 70, 70, 142}, 111, .none, {"Volt Tackle", "Iron Tail", "Quick Attack", "Thunderbolt"}}
 	enemy_mon := Mon{"Charizard", 50, {"Fire", "Flying"}, {78, 84, 78, 109, 85, 100}, {31, 31, 31, 31, 31, 31}, {4, 0, 0, 252, 0, 252}, {154, 104, 98, 161, 105, 152}, 154, .none, {"Flare Blitz", "Air Slash", "Blast Burn", "Dragon Pulse"}}
-	my_battle_mon := BattleMon{&my_mon, {my_mon.types, {1, 1, 1, 1, 1, 1, 1, 1}, "None"}}
-	enemy_battle_mon := BattleMon{&enemy_mon, {enemy_mon.types, {1, 1, 1, 1, 1, 1, 1, 1}, "None"}}
-	my_move := rand.choice(my_mon.moves[:])
-	enemy_move := rand.choice(enemy_mon.moves[:])
+	my_battle_mon := BattleMon{&my_mon, {my_mon.types, {0, 0, 0, 0, 0, 0, 0, 0}, "None", {0, 0}}}
+	enemy_battle_mon := BattleMon{&enemy_mon, {enemy_mon.types, {0, 0, 0, 0, 0, 0, 0, 0}, "None", {0, 0}}}
+	my_move: MoveName
+	enemy_move: MoveName
 
-	// first implementation of a full round of battle: both Pikachu and Charizard use a random attack from their movepool
-	full_round(&my_battle_mon, &enemy_battle_mon, &my_move, &enemy_move)
+	// Multiple rounds of battle: both Pikachu and Charizard use a random attack from their movepool
+	for i in 0..=5 {
+		my_move = rand.choice(my_mon.moves[:])
+		enemy_move = rand.choice(enemy_mon.moves[:])
+		full_round(&my_battle_mon, &enemy_battle_mon, &my_move, &enemy_move)
+	}
 }
