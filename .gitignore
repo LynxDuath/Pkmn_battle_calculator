@@ -10,3 +10,6 @@
 
 # Test directory
 tests/
+
+# TODO list
+*.txt
