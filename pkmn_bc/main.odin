@@ -29,6 +29,7 @@ TypeMapIndex := map[string]int { //PLEASE NEVER CHANGE
 	"Dragon" = 15,
 	"Dark" = 16,
 	"Fairy" = 17,
+	"None" = 18,
 }
 @(rodata)
 nr_types := 19
@@ -54,19 +55,48 @@ type_chart_raw := [?]f32 { // rows: type of move, columns: type of defending Pok
 	1.0, 2.0, 1.0, 0.5, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 2.0, 1.0, 1.0, // Fairy
 	1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, // None
 }
+Natures :: enum u8 {hardy, lonely, adamant, naughty, brave, bold, docile, impish, lax, relaxed, modest, mild, bashful, rash, quiet, calm, gentle, careful, quirky, sassy, timid, hasty, jolly, naive, serious}
+@(rodata)
+nature_chart := [Natures]Stats8 {
+	.hardy =   {0,   0,   0,   0,   0,   0, 0, 0},
+	.lonely =  {0,  10, -10,   0,   0,   0, 0, 0},
+	.adamant = {0,  10,   0, -10,   0,   0, 0, 0},
+	.naughty = {0,  10,   0,   0, -10,   0, 0, 0},
+	.brave =   {0,  10,   0,   0,   0, -10, 0, 0},
+	.bold =    {0, -10,  10,   0,   0,   0, 0, 0},
+	.docile =  {0,   0,   0,   0,   0,   0, 0, 0},
+	.impish =  {0,   0,  10, -10,   0,   0, 0, 0},
+	.lax =     {0,   0,  10,   0, -10,   0, 0, 0},
+	.relaxed = {0,   0,  10,   0,   0, -10, 0, 0},
+	.modest =  {0, -10,   0,  10,   0,   0, 0, 0},
+	.mild =    {0,   0, -10,  10,   0,   0, 0, 0},
+	.bashful = {0,   0,   0,   0,   0,   0, 0, 0},
+	.rash =    {0,   0,   0,  10, -10,   0, 0, 0},
+	.quiet =   {0,   0,   0,  10,   0, -10, 0, 0},
+	.calm =    {0, -10,   0,   0,  10,   0, 0, 0},
+	.gentle =  {0,   0, -10,   0,  10,   0, 0, 0},
+	.careful = {0,   0,   0, -10,  10,   0, 0, 0},
+	.quirky =  {0,   0,   0,   0,   0,   0, 0, 0},
+	.sassy =   {0,   0,   0,   0,  10, -10, 0, 0},
+	.timid =   {0, -10,   0,   0,   0,  10, 0, 0},
+	.hasty =   {0,   0, -10,   0,   0,  10, 0, 0},
+	.jolly =   {0,   0,   0, -10,   0,  10, 0, 0},
+	.naive =   {0,   0,   0,   0, -10,  10, 0, 0},
+	.serious = {0,   0,   0,   0,   0,   0, 0, 0},
+}
 
 // moves
 move_chart := map[MoveName]Move { //PLEASE NEVER CHANGE
-	"ConfusedAttack" = {{"None", "None"}, .physical, 8, 100, 0, {}}, // power/5, fix accuracy later
-	"Volt Tackle" = {{"Electric", "None"}, .physical, 24, 100, 0, #partial {.paralyze=0.1, .recoil=1/3}}, // power/5 for slower battles
-	"Iron Tail" = {{"Steel", "None"}, .physical, 20, 75, 0, #partial {.lowdef=0.3}}, // power/5 for slower battles
-	"Quick Attack" = {{"Normal", "None"}, .physical, 8, 100, 1, {}}, // power/5 for slower battles
-	"Thunderbolt" = {{"Electric", "None"}, .special, 18, 100, 0, #partial {.paralyze=0.1}}, // power halved for slower battles
-	"Flare Blitz" = {{"Fire", "None"}, .physical, 24, 100, 0, #partial {.burn=0.1, .recoil=1/3}}, // power halved for slower battles
-	"Air Slash" = {{"Flying", "None"}, .special, 15, 95, 0, #partial {.flinch=0.3}}, // power halved for slower battles
-	"Blast Burn" = {{"Fire", "None"}, .special, 30, 90, 0, #partial {.recharge=1}}, // power halved for slower battles
-	"Dragon Pulse" = {{"Dragon", "None"}, .special, 17, 100, 0, {}}, // power halved for slower battles
-}
+	"ConfusedAttack" = {{"None", "None"}, .physical, 8, 100, 0, {}, {}}, // power/5, fix accuracy later
+	"Volt Tackle" = {{"Electric", "None"}, .physical, 24, 100, 0, #partial {.paralyze=0.1, .recoil=1.0/3.0}, {}}, // power/5 for slower battles
+	"Iron Tail" = {{"Steel", "None"}, .physical, 20, 75, 0, #partial {.statdrop=0.3}, #partial {def=-1}}, // power/5 for slower battles
+	"Quick Attack" = {{"Normal", "None"}, .physical, 8, 100, 1, {}, {}}, // power/5 for slower battles
+	"Thunderbolt" = {{"Electric", "None"}, .special, 18, 100, 0, #partial {.paralyze=0.1}, {}}, // power halved for slower battles
+	"Flare Blitz" = {{"Fire", "None"}, .physical, 24, 100, 0, #partial {.burn=0.1, .recoil=1.0/3.0}, {}}, // power halved for slower battles
+	"Air Slash" = {{"Flying", "None"}, .special, 15, 95, 0, #partial {.flinch=0.3}, {}}, // power halved for slower battles
+	"Blast Burn" = {{"Fire", "None"}, .special, 30, 90, 0, #partial {.recharge=1}, {}}, // power halved for slower battles
+	"Dragon Pulse" = {{"Dragon", "None"}, .special, 17, 100, 0, {}, {}}, // power halved for slower battles
+} // infinite accuracy with math.inf_f32, but currently doesn't work with ints
 
 // structs and others
 Stats6 :: struct {
@@ -76,11 +106,11 @@ Stats8 :: struct {
 	hp, atk, def, spa, spd, spe, acc, eva: i8,
 }
 Types :: struct {
-		t1, t2: string,
+	t1, t2: string,
 }
 MoveName :: distinct string
 MoveCategory :: enum u8 {physical, special, status}
-MoveSec :: enum u8 {burn, freeze, paralyze, poison, badlypoison, sleep, confuse, yawn, flinch, recoil, lowdef, highcrit, recharge, charge} // probably not complete, completing later, working on implementation one by one, currently confuse
+MoveSec :: enum u8 {burn, freeze, paralyze, poison, badlypoison, sleep, confuse, yawn, flinch, recoil, absorb, statdrop, statboost, highcrit, recharge, charge} // probably not complete, completing later, working on implementation one by one, next one recharge and charge, but not now.
 MoveSecProb :: [MoveSec]f32
 Move :: struct {
 	types: Types,
@@ -89,17 +119,18 @@ Move :: struct {
 	base_accuracy: int,
 	prio: i8,
 	sec: MoveSecProb,
+	stat_change: Stats8,
 	// AP
 }
 MovePool :: [4]MoveName
 Status1 :: enum u8 {none, fainted, burned, frozen, paralyzed, poisoned, badlypoisoned, asleep} // in theory all are done, testing done
-Status2 :: bit_set[enum u8 {confused, flinched}] // VERY incomplete
+Status2 :: bit_set[enum u8 {confused, yawned1, yawned2, flinched}] // VERY incomplete
 Mon :: struct {
 	species: string,
 	// name: string,
 	level: int,
 	// ability: string,
-	// nature: string,
+	nature: Natures,
 	types: Types,
 	base_stats: Stats6,
 	ivs: Stats6,
@@ -229,7 +260,12 @@ attack :: proc(mon_1, mon_2: ^BattleMon, move: ^MoveName) -> (damage: int, resul
 	// 1: 1/24, 2: 1/8, 3: 1/2, 4: 1
 	crit: f32 = 1.0
 	if ! conf {
-		crit_chance: f32 = 1.0/24.0
+		crit_chance: f32
+		if move_data.sec[.highcrit] != 0.0 {
+			crit_chance = 1.0/8.0
+		} else {
+			crit_chance = 1.0/24.0
+		}
 		crit_rand := rand.float32()
 		if crit_rand <= crit_chance {
 			crit = 1.5
@@ -339,10 +375,112 @@ half_round :: proc(mon_1, mon_2: ^BattleMon, move: ^MoveName) {
 	}
 	conf_chance := move_chart[move^].sec[.confuse]
 	conf_rand := rand.float32()
-	if conf_rand <= conf_chance && mon_2.stat_mon.status1 == .none {
+	if conf_rand <= conf_chance {
 		mon_2.dyn_mon.status2 = mon_2.dyn_mon.status2 + Status2{.confused}
 		mon_2.dyn_mon.status_counters.confusion = u8(2 + rand.int_max(4))
-		fmt.printfln("%s fell asleep!", mon_2.stat_mon.species)
+		fmt.printfln("%s was confused!", mon_2.stat_mon.species)
+	}
+	yawn_chance := move_chart[move^].sec[.yawn]
+	yawn_rand := rand.float32()
+	if yawn_rand <= yawn_chance && .yawned1 not_in mon_2.dyn_mon.status2 {
+		mon_2.dyn_mon.status2 = mon_2.dyn_mon.status2 + Status2{.yawned1}
+		fmt.printfln("%s is yawning!", mon_2.stat_mon.species)
+	}
+	flinch_chance := move_chart[move^].sec[.flinch]
+	flinch_rand := rand.float32()
+	if flinch_rand <= flinch_chance {
+		mon_2.dyn_mon.status2 = mon_2.dyn_mon.status2 + Status2{.flinched}
+	}
+	if move_chart[move^].sec[.recoil] != 0 {
+		rec_damage := int(f32(damage) * move_chart[move^].sec[.recoil])
+		if rec_damage < mon_1.stat_mon.current_hp {
+			fmt.printfln("%s hurt itself in recoil: %d", mon_1.stat_mon.species, rec_damage)
+			mon_1.stat_mon.current_hp -= rec_damage
+			fmt.printfln("%s's current HP: %d", mon_1.stat_mon.species, mon_1.stat_mon.current_hp)
+		} else {
+			fmt.printfln("%s hurt itself in recoil: %d", mon_1.stat_mon.species, mon_1.stat_mon.current_hp)
+			mon_1.stat_mon.current_hp = 0
+			mon_1.stat_mon.status1 = .fainted
+			fmt.printfln("%s fainted!", mon_1.stat_mon.species)
+			// win condition
+			fmt.printfln("%s wins the match!", mon_2.stat_mon.species)
+			os.exit(0)
+		}
+	}
+	if move_chart[move^].sec[.absorb] != 0 {
+		abs_heal := int(f32(damage) * move_chart[move^].sec[.recoil])
+		fmt.printfln("%s heals itself!", mon_1.stat_mon.species)
+		mon_1.stat_mon.current_hp = min(mon_1.stat_mon.current_hp + abs_heal, mon_1.stat_mon.actual_stats.hp)
+		fmt.printfln("%s's current HP: %d", mon_1.stat_mon.species, mon_1.stat_mon.current_hp)
+	}
+	statdrop_chance := move_chart[move^].sec[.statdrop]
+	statdrop_rand := rand.float32()
+	if statdrop_rand <= statdrop_chance {
+		change_stats(mon_2, move_chart[move^].stat_change)
+	}
+	statboost_chance := move_chart[move^].sec[.statboost]
+	statboost_rand := rand.float32()
+	if statboost_rand <= statboost_chance {
+		change_stats(mon_2, move_chart[move^].stat_change)
+	}
+}
+
+change_stats_announcement :: proc(mon: string, change_value: i8, stat: string) {
+	switch x := change_value; {
+	case x >= 3:
+		fmt.printfln("%s's %s rose drastically!", mon, stat)
+	case x == 2:
+		fmt.printfln("%s's %s rose sharply!", mon, stat)
+	case x == 1:
+		fmt.printfln("%s's %s rose!", mon, stat)
+	case x == 0:
+		fmt.printfln("%s's %s won't go any higher or lower!", mon, stat)
+	case x == -1:
+		fmt.printfln("%s's %s fell!", mon, stat)
+	case x ==-2 :
+		fmt.printfln("%s's %s harshly fell!", mon, stat)
+	case x <= -3:
+		fmt.printfln("%s's %s severely fell!", mon, stat)
+	}
+}
+
+change_stats :: proc(mon: ^BattleMon, change: Stats8) {
+	using mon.dyn_mon.stat_changes
+	change_value: i8
+	if change.atk != 0 {
+		change_value = min(max(atk + change.atk, -6), 6) - atk
+		atk += change_value
+		change_stats_announcement(mon.stat_mon.species, change_value, "Attack")
+	}
+	if change.def != 0 {
+		change_value = min(max(def + change.def, -6), 6) - def
+		def += change_value
+		change_stats_announcement(mon.stat_mon.species, change_value, "Defence")
+	}
+	if change.spa != 0 {
+		change_value = min(max(spa + change.spa, -6), 6) - spa
+		spa += change_value
+		change_stats_announcement(mon.stat_mon.species, change_value, "Special Attack")
+	}
+	if change.spd != 0 {
+		change_value = min(max(spd + change.spd, -6), 6) - spd
+		spd += change_value
+		change_stats_announcement(mon.stat_mon.species, change_value, "Special Defence")
+	}
+	if change.spe != 0 {
+		change_value = min(max(spe + change.spe, -6), 6) - spe
+		spe += change_value
+		change_stats_announcement(mon.stat_mon.species, change_value, "Speed")
+	}
+	if change.acc != 0 {
+		change_value = min(max(acc + change.acc, -6), 6) - acc
+		acc += change_value
+		change_stats_announcement(mon.stat_mon.species, change_value, "Accuracy")
+	}
+	if change.eva != 0 {
+		change_value = min(max(eva + change.eva, -6), 6) - eva
+		eva += change_value
+		change_stats_announcement(mon.stat_mon.species, change_value, "Evasiveness")
 	}
 }
 
@@ -371,6 +509,7 @@ full_round :: proc(mon_1, mon_2: ^BattleMon, move1, move2: ^MoveName) {
 		{move_chart[move1^].prio, para_spe(mon_1.stat_mon.actual_stats.spe, mon_1.stat_mon.status1), mon_1, mon_2, move1},
 		{move_chart[move2^].prio, para_spe(mon_2.stat_mon.actual_stats.spe, mon_2.stat_mon.status1), mon_2, mon_1, move2},
 	}
+	rand.shuffle(prio_list[:]) // for random outcome of speed ties
 	slice.sort_by(prio_list[:], prio_sort)
 	slice.sort_by(prio_list[:], prio_speed_sort)
 
@@ -411,29 +550,31 @@ full_round :: proc(mon_1, mon_2: ^BattleMon, move1, move2: ^MoveName) {
 			}
 			fallthrough
 		case:
+			if .flinched in entry.atk_mon.dyn_mon.status2 {
+				fmt.printfln("%s flinches!", entry.atk_mon.stat_mon.species)
+				break
+			}
 			if .confused in entry.atk_mon.dyn_mon.status2 {
 				entry.atk_mon.dyn_mon.status_counters.confusion -= 1
 				if entry.atk_mon.dyn_mon.status_counters.confusion == 0 {
 					mon_2.dyn_mon.status2 = mon_2.dyn_mon.status2 - Status2{.confused}
 					fmt.printfln("%s snapped out of confusion!", entry.atk_mon.stat_mon.species)
-					half_round(entry.atk_mon, entry.def_mon, entry.move)
 				} else {
+					fmt.printfln("%s is confused!", entry.atk_mon.stat_mon.species)
 					conf_chance: f32 = 1/3
 					conf_rand := rand.float32()
 					if conf_rand <= conf_chance {
 						// confusion hit
 						entry.move^ = "ConfusedAttack"
-						half_round(entry.atk_mon, entry.atk_mon, entry.move)
 					}
 				}
-			} else {
-				half_round(entry.atk_mon, entry.def_mon, entry.move)
 			}
+			half_round(entry.atk_mon, entry.def_mon, entry.move)
 		}
 		fmt.println()
 	}
 
-	// burn, poison, sandstorm, hail
+	// burn, poison, sandstorm, hail, yawn into sleep, end flinches
 	slice.sort_by(prio_list[:], speed_sort)
 	for entry in prio_list {
 		#partial switch entry.atk_mon.stat_mon.status1 {
@@ -475,22 +616,33 @@ full_round :: proc(mon_1, mon_2: ^BattleMon, move1, move2: ^MoveName) {
 				fmt.printfln("%s fainted!", entry.atk_mon.stat_mon.species)
 			}
 		}
+		if .yawned1 in entry.atk_mon.dyn_mon.status2 {
+			entry.atk_mon.dyn_mon.status2 = entry.atk_mon.dyn_mon.status2 - Status2{.yawned1} + Status2{.yawned2}
+		} else if .yawned2 in entry.atk_mon.dyn_mon.status2 {
+			if entry.atk_mon.stat_mon.status1 == .none {
+				entry.atk_mon.stat_mon.status1 = .asleep
+				entry.atk_mon.dyn_mon.status_counters.sleep = u8(2 + rand.int_max(4))
+				entry.atk_mon.dyn_mon.status2 = entry.atk_mon.dyn_mon.status2 - Status2{.yawned2}
+				fmt.printfln("%s fell asleep!", mon_2.stat_mon.species)
+			}
+		}
+		entry.atk_mon.dyn_mon.status2 = entry.atk_mon.dyn_mon.status2 - Status2{.flinched}
 	}
 	fmt.println()
 }
 
 update_stats :: proc(using mon: ^Mon) {
-	// HP = floor((2*stat+IV+floor(EV/4))*lv/100)+lv+1
+	// HP = floor((2*stat+IV+floor(EV/4))*lv/100)+lv+10
 	// others = floor(floor(2*stat+IV*floor(EV/4)/100+5)*nature)
 	actual_stats.hp = (2 * base_stats.hp + ivs.hp + evs.hp / 4) * level / 100 + level + 10
-	actual_stats.atk = ((2 * base_stats.atk + ivs.atk + evs.atk / 4) * level / 100 + 5) // * nature
-	actual_stats.def = ((2 * base_stats.def + ivs.def + evs.def / 4) * level / 100 + 5) // * nature
-	actual_stats.spa = ((2 * base_stats.spa + ivs.spa + evs.spa / 4) * level / 100 + 5) // * nature
-	actual_stats.spd = ((2 * base_stats.spd + ivs.spd + evs.spd / 4) * level / 100 + 5) // * nature
-	actual_stats.spe = ((2 * base_stats.spe + ivs.spe + evs.spe / 4) * level / 100 + 5) // * nature
+	actual_stats.atk = ((2 * base_stats.atk + ivs.atk + evs.atk / 4) * level / 100 + 5) * (100 + int(nature_chart[nature].atk)) / 100
+	actual_stats.def = ((2 * base_stats.def + ivs.def + evs.def / 4) * level / 100 + 5) * (100 + int(nature_chart[nature].def)) / 100
+	actual_stats.spa = ((2 * base_stats.spa + ivs.spa + evs.spa / 4) * level / 100 + 5) * (100 + int(nature_chart[nature].spa)) / 100
+	actual_stats.spd = ((2 * base_stats.spd + ivs.spd + evs.spd / 4) * level / 100 + 5) * (100 + int(nature_chart[nature].spd)) / 100
+	actual_stats.spe = ((2 * base_stats.spe + ivs.spe + evs.spe / 4) * level / 100 + 5) * (100 + int(nature_chart[nature].spe)) / 100
 }
 
-init_mon :: proc(species: string, level: int, types: Types, base_stats: Stats6, ivs: Stats6, evs: Stats6, moves: MovePool, status1 := Status1.none) -> (mon: Mon) {
+init_mon :: proc(species: string, level: int, nature: Natures, types: Types, base_stats, ivs, evs: Stats6, moves: MovePool, status1 := Status1.none) -> (mon: Mon) {
 	mon.species = species
 	mon.level = level
 	mon.types = types
@@ -506,8 +658,8 @@ init_mon :: proc(species: string, level: int, types: Types, base_stats: Stats6, 
 
 // main
 main :: proc() {
-	my_mon := init_mon("Pikachu", 50, {"Electric", "None"}, {35, 55, 40, 50, 50, 90}, {31, 31, 31, 31, 31, 31}, {4, 252, 0, 0, 0, 252}, {"Volt Tackle", "Iron Tail", "Quick Attack", "Thunderbolt"})
-	enemy_mon := init_mon("Charizard", 50, {"Fire", "Flying"}, {78, 84, 78, 109, 85, 100}, {31, 31, 31, 31, 31, 31}, {4, 0, 0, 252, 0, 252}, {"Flare Blitz", "Air Slash", "Blast Burn", "Dragon Pulse"})
+	my_mon := init_mon("Pikachu", 50, .adamant, {"Electric", "None"}, {35, 55, 40, 50, 50, 90}, {31, 31, 31, 31, 31, 31}, {4, 252, 0, 0, 0, 252}, {"Volt Tackle", "Iron Tail", "Quick Attack", "Thunderbolt"})
+	enemy_mon := init_mon("Charizard", 50, .hasty, {"Fire", "Flying"}, {78, 84, 78, 109, 85, 100}, {31, 31, 31, 31, 31, 31}, {4, 0, 0, 252, 0, 252}, {"Flare Blitz", "Air Slash", "Blast Burn", "Dragon Pulse"})
 	my_battle_mon := BattleMon{&my_mon, {my_mon.types, {}, {}, {}}}
 	enemy_battle_mon := BattleMon{&enemy_mon, {enemy_mon.types, {}, {}, {}}}
 
